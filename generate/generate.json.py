@@ -24,9 +24,9 @@ class Container(list):
     def as_dict(self) -> dict:
         asd = {}
         for doc in self:
-            asd[doc.key] = {}
+            asd[doc.file_name] = {}
             for header in doc:
-                asd[doc.key][header.name] = header.__dict__
+                asd[doc.file_name][header.name] = header.__dict__
         return asd
 
     def do(self):
@@ -42,6 +42,26 @@ class Container(list):
                 header.value = doc.raw[header.end_index:next_.start_index]
                 continue
 
+    def do_options(self):
+        doc: Headers
+        header: Header
+        for doc in self:
+            for i, header in enumerate(doc):
+                if header.name == "OPTIONS":
+                    if not header.value.startswith("\n"):
+                        header.value = "\n" + header.value
+
+
+
+@dataclass
+class Option:
+    key: str
+    value: str
+    description: str
+
+    def __repr__(self):
+        return self.key
+
 
 @dataclass
 class Header:
@@ -49,19 +69,26 @@ class Header:
     start_index: int
     end_index: int
     value: str = field(init=False)
+    options: list[Option] = field(init=False)
+
+    def __repr__(self):
+        return self.name
 
 
 @dataclass
 class Headers(list):
-    key: str
+    file_name: str
     raw: str
+
+    def __repr__(self):
+        return self.file_name
 
 
 if __name__ == '__main__':
     d = Container()
     for k, v in collect_git_docs().items():
         h = Headers(
-            key=k,
+            file_name=k,
             raw=v,
         )
         for match in re.finditer("\\n[A-Za-z0-9]+\\n-+\\n", v):
@@ -73,5 +100,7 @@ if __name__ == '__main__':
         d.append(h)
 
     d.do()
+    d.do_options()
     with open("generated.json", "w") as f:
         json.dump(d.as_dict(), f, indent=4)
+
