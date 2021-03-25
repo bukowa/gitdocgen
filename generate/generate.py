@@ -66,7 +66,7 @@ if __name__ == '__main__':
         )
         for match in re.finditer("\\n[A-Za-z0-9]+\\n-+\\n", v):
             h.append(Header(
-                name=v[match.regs[0][0]:match.regs[0][1]],
+                name=v[match.regs[0][0]:match.regs[0][1]].rsplit()[0],
                 start_index=match.regs[0][0],
                 end_index=match.regs[0][1],
             ))
