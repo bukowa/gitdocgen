@@ -1,7 +1,10 @@
+import dataclasses
+import json
 import os
 from dataclasses import dataclass, field
-from bs4 import Tag
+
 from bs4 import BeautifulSoup
+from bs4 import Tag
 
 DOCS_DIR = os.path.join(os.path.dirname(__file__), "githtml")
 
@@ -18,34 +21,44 @@ def collect_git_html_docs() -> dict[str, str]:
     return d
 
 
-@dataclass
+@dataclass(init=False)
 class Section:
-    tag: Tag
     name: str = field(init=False)
     text: str = field(init=False)
 
-    def __post_init__(self):
+    def __init__(self, tag: Tag):
+        self._tag = tag
         self.name = self.tag.find("h2").text
         start_index = self.tag.text.index(self.name) + len(self.name)
         self.text = self.tag.text.lstrip()[start_index:].lstrip()
 
+    @property
+    def tag(self):
+        return self._tag
 
-@dataclass
+
 class Synopsis(Section):
     ...
 
 
-@dataclass
 class Description(Section):
     ...
 
 
 @dataclass
+class Option:
+    keys: list[str]
+    info: str
+
+
 class Options(Section):
     ...
+    options: list[Option]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 
-@dataclass
 class Examples(Section):
     ...
 
@@ -53,18 +66,20 @@ class Examples(Section):
 @dataclass
 class Command:
     name: str
-    sections: list[Section]
+    synopsis: Synopsis = field(default=None)
+    description: Description = field(default=None)
+    options: Options = field(default=None)
+    examples: Examples = field(default=None)
 
-    synopsis: Synopsis = field(init=False)
-    description: Description = field(init=False)
-    options: Options = field(init=False)
-
-    def __post_init__(self):
-        for sect in self.sections:
-            for kk, vv in self.__dataclass_fields__.items():
+    @classmethod
+    def new(cls, name: str, sections: list[Section]):
+        kwargs = {"name": name}
+        for sect in sections:
+            for kk, vv in cls.__dataclass_fields__.items():
                 klass = vv.type
                 if sect.name == klass.__name__.upper():
-                    self.__setattr__(kk.lower(), klass(tag=sect.tag))
+                    kwargs[kk.lower()] = klass(tag=sect.tag)
+        return cls(**kwargs)
 
 
 if __name__ == '__main__':
@@ -80,7 +95,21 @@ if __name__ == '__main__':
     commands = []
 
     for k, v in data.items():
-        commands.append(Command(
-            name=k,
-            sections=v,
-        ))
+        commands.append(Command.new(k, v))
+
+    del data, html, k, v, docs, s
+
+    class Encoder(json.JSONEncoder):
+        def default(self, o):
+            if dataclasses.is_dataclass(o):
+                return dataclasses.asdict(o)
+            return super().default(o)
+
+    with open("gen", "w") as f:
+        json.dump(commands, f, cls=Encoder)
+
+# double values, remove last index
+# ^[<-].*\n{3}^[-<].*\n{4}(.*\n)+?(^[-<])
+# single values, remove last index
+# ^[-<].*\n{4}(.*\n)+?(^[-<])
+
