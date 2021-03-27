@@ -45,18 +45,12 @@ class Description(Section):
     ...
 
 
-@dataclass
-class Option:
-    keys: list[str]
-    info: str
-
-
 class Options(Section):
-    ...
-    options: list[Option]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.single_opts = list()
+        self.multiple_opts = list()
 
 
 class Examples(Section):
@@ -113,3 +107,31 @@ if __name__ == '__main__':
 # single values, remove last index
 # ^[-<].*\n{4}(.*\n)+?(^[-<])
 
+    import re
+
+    for cmd in commands:
+        if cmd.options and cmd.options.text:
+            text = cmd.options.text
+
+            got_multiple = []
+            for x in re.finditer(r"^[<-].*\n{3}^[-<].*\n{4}(.*\n)+?(^[-<])", text, re.M):
+                got_multiple.append(text[x.regs[0][0]:x.regs[0][1]-1])
+
+            got_single = []
+            for x in re.finditer(r"^[-<].*\n{4}(.*\n)+?(^[-<])", text, re.M):
+                got_single.append(text[x.regs[0][0]:x.regs[0][1]-1])
+
+            got_correct = []
+
+            def is_in_list(value: str):
+                for multiple in got_multiple:
+                    try: multiple.index(value)
+                    except ValueError: pass
+                    else: return multiple
+                return None
+
+            for single in got_single:
+                if yes := is_in_list(single):
+                    cmd.options.multiple_opts.append(yes)
+                else:
+                    cmd.options.single_opts.append(single)
